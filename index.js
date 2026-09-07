@@ -13,16 +13,15 @@ if (!TOKEN) {
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildMessages
+        GatewayIntentBits.GuildMembers
     ]
 });
 
 app.get('/', (req, res) => res.send('✅ Pulse Setup Bot is running!'));
 app.listen(PORT, () => console.log(`🌐 Web server on port ${PORT}`));
 
-// ---- COMMAND REGISTRATION ----
 async function registerCommands() {
     try {
         await client.application.commands.set([
@@ -51,7 +50,6 @@ async function registerCommands() {
     }
 }
 
-// ---- MAIN COMMAND HANDLER ----
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
 
@@ -94,7 +92,6 @@ client.on('interactionCreate', async (interaction) => {
     }
 });
 
-// ---- SCAN SERVER ----
 async function scanServer(guild) {
     const existingCategories = guild.channels.cache
         .filter(c => c.type === ChannelType.GuildCategory)
@@ -106,7 +103,6 @@ async function scanServer(guild) {
 
     const existingRoles = guild.roles.cache.map(r => r.name);
 
-    // Check what's missing
     const requiredCategories = ['📋 INFORMATION', '💬 COMMUNITY', '🎵 VOICE CHANNELS', '🎉 FUN & EVENTS', '🛠️ STAFF', '🤖 BOT ZONE'];
     const missingCategories = requiredCategories.filter(c => !existingCategories.some(e => e === c));
 
@@ -133,7 +129,6 @@ async function scanServer(guild) {
     return embed;
 }
 
-// ---- FULL SETUP ----
 async function fullSetup(guild) {
     await createRoles(guild);
     await createChannels(guild);
@@ -141,7 +136,6 @@ async function fullSetup(guild) {
     await createInvite(guild);
 }
 
-// ---- CREATE ROLES WITH EMOJIS ----
 async function createRoles(guild) {
     const roleData = [
         { name: '👑 Owner', color: '#FF0000', perms: PermissionsBitField.Flags.Administrator },
@@ -162,16 +156,11 @@ async function createRoles(guild) {
                     permissions: data.perms || []
                 });
                 console.log(`✅ Created role: ${data.name}`);
-            } catch (e) {
-                console.log(`❌ Failed to create role: ${data.name}`);
-            }
-        } else {
-            console.log(`⏭️ Role already exists: ${data.name}`);
+            } catch (e) {}
         }
     }
 }
 
-// ---- CREATE CHANNELS WITH NICE SETUP ----
 async function createChannels(guild) {
     const categories = [
         {
@@ -228,7 +217,6 @@ async function createChannels(guild) {
     ];
 
     for (const cat of categories) {
-        // Check if category exists
         let category = guild.channels.cache.find(c => c.name === cat.name && c.type === ChannelType.GuildCategory);
         if (!category) {
             try {
@@ -237,21 +225,12 @@ async function createChannels(guild) {
                     type: ChannelType.GuildCategory
                 });
                 console.log(`✅ Created category: ${cat.name}`);
-            } catch (e) {
-                console.log(`❌ Failed to create category: ${cat.name}`);
-                continue;
-            }
-        } else {
-            console.log(`⏭️ Category already exists: ${cat.name}`);
+            } catch (e) { continue; }
         }
 
-        // Create channels in this category
         for (const chData of cat.channels) {
             const exists = guild.channels.cache.find(c => c.name === chData.name);
-            if (exists) {
-                console.log(`⏭️ Channel already exists: ${chData.name}`);
-                continue;
-            }
+            if (exists) continue;
 
             try {
                 const channel = await guild.channels.create({
@@ -260,9 +239,7 @@ async function createChannels(guild) {
                     parent: category.id,
                     topic: chData.topic || ''
                 });
-                console.log(`✅ Created channel: ${chData.name}`);
 
-                // Staff channel permissions
                 if (chData.name.includes('staff') || chData.name.includes('mod')) {
                     await channel.permissionOverwrites.create(guild.id, { ViewChannel: false });
                     const modRole = guild.roles.cache.find(r => r.name.includes('🛡️ Mod'));
@@ -275,7 +252,6 @@ async function createChannels(guild) {
                     }
                 }
 
-                // Bot channel permissions
                 if (chData.name.includes('bot-commands')) {
                     await channel.permissionOverwrites.create(guild.id, { SendMessages: false });
                     const botRole = guild.roles.cache.find(r => r.name.includes('🤖 Bot'));
@@ -283,26 +259,20 @@ async function createChannels(guild) {
                         await channel.permissionOverwrites.create(botRole, { SendMessages: true });
                     }
                 }
-            } catch (e) {
-                console.log(`❌ Failed to create channel: ${chData.name}`);
-            }
+            } catch (e) {}
         }
     }
 }
 
-// ---- CREATE WELCOME MESSAGE ----
 async function createWelcome(guild) {
     const channel = guild.channels.cache.find(c => c.name === '💬 general');
     if (channel) {
         try {
-            await channel.send({
-                content: `# 🎉 Welcome to **${guild.name}**!\n\n## 📌 Start by reading the rules in <#${guild.channels.cache.find(c => c.name === '📜 rules')?.id}>\n## 📢 Check <#${guild.channels.cache.find(c => c.name === '📢 announcements')?.id}> for updates\n\n### 🎮 Get your roles and enjoy the server!`
-            });
+            await channel.send(`# 🎉 Welcome to **${guild.name}**!\n\n## 📌 Start by reading the rules in <#${guild.channels.cache.find(c => c.name === '📜 rules')?.id}>\n## 📢 Check <#${guild.channels.cache.find(c => c.name === '📢 announcements')?.id}> for updates\n\n### 🎮 Get your roles and enjoy the server!`);
         } catch (e) {}
     }
 }
 
-// ---- CREATE INVITE ----
 async function createInvite(guild) {
     try {
         const channel = guild.channels.cache.find(c => c.type === ChannelType.GuildText);
@@ -315,7 +285,6 @@ async function createInvite(guild) {
     } catch (e) {}
 }
 
-// ---- BOT STARTUP ----
 client.once('ready', async () => {
     console.log(`🤖 ${client.user.tag} is online!`);
     await registerCommands();
