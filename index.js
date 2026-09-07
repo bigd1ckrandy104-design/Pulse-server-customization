@@ -647,7 +647,6 @@ async function fixAllPermissions(guild) {
     const ownerRole = guild.roles.cache.find(r => r.name === '👑 Owner');
     const adminRole = guild.roles.cache.find(r => r.name === '🔰 Admin');
     const modRole = guild.roles.cache.find(r => r.name === '🛡️ Mod');
-    const memberRole = guild.roles.cache.find(r => r.name === '🎮 Member');
     const botRole = guild.roles.cache.find(r => r.name === '🤖 Bot');
     const mutedRole = guild.roles.cache.find(r => r.name === '🔇 Muted');
 
@@ -802,4 +801,19 @@ async function createInvite(guild) {
         if (channel) {
             await channel.createInvite({ maxAge: 0, maxUses: 0 });
         }
-   
+    } catch (e) {}
+}
+
+// ---- FULL SETUP ----
+async function fullSetup(guild) {
+    const serverType = await detectServerType(guild);
+    await autoSetup(guild, serverType);
+}
+
+// ---- BOT STARTUP ----
+client.once('ready', async () => {
+    console.log(`🤖 ${client.user.tag} is online!`);
+    await registerCommands();
+});
+
+client.login(TOKEN);
