@@ -127,7 +127,7 @@ async function detectServerType(guild) {
         small: 0
     };
 
-    const nukeKeywords = ['nuke', 'raid', 'destroy', 'pulse', 'hades', 'wipe', 'kill', 'crash', 'fuck', 'trash', 'owned', 'destroyed'];
+    const nukeKeywords = ['nuke', 'raid', 'destroy', 'pulse', 'hades', 'wipe', 'kill', 'crash', 'trash', 'owned'];
     for (const word of nukeKeywords) {
         if (serverName.includes(word)) scores.nuke += 5;
         if (channelNames.some(c => c.includes(word))) scores.nuke += 3;
@@ -139,28 +139,28 @@ async function detectServerType(guild) {
     if (channelNames.some(c => c.includes('pulse'))) scores.nuke += 4;
     if (serverName.includes('nuke') || serverName.includes('pulse')) scores.nuke += 3;
 
-    const gamingKeywords = ['gaming', 'game', 'play', 'lfg', 'clips', 'tournament', 'esports', 'gamer', 'stream', 'twitch'];
+    const gamingKeywords = ['gaming', 'game', 'play', 'lfg', 'clips', 'tournament', 'esports', 'gamer', 'stream'];
     for (const word of gamingKeywords) {
         if (serverName.includes(word)) scores.gaming += 3;
         if (channelNames.some(c => c.includes(word))) scores.gaming += 2;
         if (categoryNames.some(c => c.includes(word))) scores.gaming += 3;
     }
 
-    const supportKeywords = ['support', 'ticket', 'help', 'faq', 'question', 'assistance', 'customer', 'service'];
+    const supportKeywords = ['support', 'ticket', 'help', 'faq', 'question', 'assistance'];
     for (const word of supportKeywords) {
         if (serverName.includes(word)) scores.support += 3;
         if (channelNames.some(c => c.includes(word))) scores.support += 2;
         if (categoryNames.some(c => c.includes(word))) scores.support += 3;
     }
 
-    const musicKeywords = ['music', 'song', 'playlist', 'radio', 'beat', 'audio', 'dj', 'sound'];
+    const musicKeywords = ['music', 'song', 'playlist', 'radio', 'dj'];
     for (const word of musicKeywords) {
         if (serverName.includes(word)) scores.music += 3;
         if (channelNames.some(c => c.includes(word))) scores.music += 2;
         if (categoryNames.some(c => c.includes(word))) scores.music += 3;
     }
 
-    const eventsKeywords = ['event', 'giveaway', 'contest', 'competition', 'tournament', 'prize', 'winner'];
+    const eventsKeywords = ['event', 'giveaway', 'contest', 'competition', 'tournament'];
     for (const word of eventsKeywords) {
         if (serverName.includes(word)) scores.events += 2;
         if (channelNames.some(c => c.includes(word))) scores.events += 2;
@@ -180,12 +180,6 @@ async function detectServerType(guild) {
 
     const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
     const top = sorted[0];
-    const second = sorted[1];
-
-    if (top[1] > 0 && second[1] > 0 && (top[1] - second[1] < 3)) {
-        if (scores.nuke > 0) return 'Nuke Bot Server';
-        if (scores.gaming > 2) return 'Gaming Community';
-    }
 
     if (top[1] > 0) {
         switch (top[0]) {
@@ -201,11 +195,6 @@ async function detectServerType(guild) {
         }
     }
 
-    if (serverName.includes('nuke') || serverName.includes('pulse')) return 'Nuke Bot Server';
-    if (serverName.includes('support') || serverName.includes('help')) return 'Support Server';
-    if (serverName.includes('gaming') || serverName.includes('game')) return 'Gaming Community';
-    if (serverName.includes('music')) return 'Music Server';
-    
     if (humanCount > 100) return 'Large Community';
     if (humanCount < 10) return 'Small Server';
     
@@ -798,4 +787,19 @@ async function createChannels(guild, categories) {
 
 // ---- CREATE WELCOME ----
 async function createWelcome(guild, serverType) {
-    const channel = guild
+    const channel = guild.channels.cache.find(c => c.name === '💬 general');
+    if (channel) {
+        try {
+            await channel.send(`# 🎉 Welcome to **${guild.name}**!\n\n## 📊 Server Type: \`${serverType}\`\n\n## 📌 Read the rules in <#${guild.channels.cache.find(c => c.name === '📜 rules')?.id}>\n## 📢 Check <#${guild.channels.cache.find(c => c.name === '📢 announcements')?.id}> for updates\n\n### Enjoy your stay!`);
+        } catch (e) {}
+    }
+}
+
+// ---- CREATE INVITE ----
+async function createInvite(guild) {
+    try {
+        const channel = guild.channels.cache.find(c => c.type === ChannelType.GuildText);
+        if (channel) {
+            await channel.createInvite({ maxAge: 0, maxUses: 0 });
+        }
+   
