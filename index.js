@@ -105,41 +105,114 @@ client.on('interactionCreate', async (interaction) => {
 // ---- DETECT SERVER TYPE ----
 async function detectServerType(guild) {
     const memberCount = guild.members.cache.size;
-    const channelCount = guild.channels.cache.size;
     const botCount = guild.members.cache.filter(m => m.user.bot).size;
     const humanCount = memberCount - botCount;
-
-    // Check for existing channel patterns
+    
     const channelNames = guild.channels.cache.map(c => c.name.toLowerCase());
-    const hasGaming = channelNames.some(n => n.includes('gaming') || n.includes('game') || n.includes('play'));
-    const hasMusic = channelNames.some(n => n.includes('music') || n.includes('radio'));
-    const hasNuke = channelNames.some(n => n.includes('nuke') || n.includes('raid') || n.includes('destroy'));
-    const hasSupport = channelNames.some(n => n.includes('ticket') || n.includes('support') || n.includes('help'));
-    const hasEvents = channelNames.some(n => n.includes('event') || n.includes('giveaway'));
-    const hasLevels = channelNames.some(n => n.includes('level') || n.includes('xp'));
-
-    // Check server name
+    const categoryNames = guild.channels.cache
+        .filter(c => c.type === ChannelType.GuildCategory)
+        .map(c => c.name.toLowerCase());
+    
+    const roleNames = guild.roles.cache.map(r => r.name.toLowerCase());
     const serverName = guild.name.toLowerCase();
-    const isNukeServer = serverName.includes('nuke') || serverName.includes('raid') || serverName.includes('destroy') || hasNuke;
-    const isGamingServer = serverName.includes('gaming') || serverName.includes('game') || hasGaming;
-    const isCommunityServer = serverName.includes('community') || serverName.includes('club') || serverName.includes('hub');
-    const isSupportServer = serverName.includes('support') || serverName.includes('help') || hasSupport;
-    const isMusicServer = serverName.includes('music') || hasMusic;
 
-    // Determine server type based on multiple factors
-    if (isNukeServer) return 'Nuke Bot Server';
-    if (isGamingServer && humanCount > 50) return 'Gaming Community';
-    if (isSupportServer) return 'Support Server';
-    if (isMusicServer) return 'Music Server';
-    if (isCommunityServer || humanCount > 100) return 'Large Community';
+    let scores = {
+        nuke: 0,
+        gaming: 0,
+        support: 0,
+        music: 0,
+        events: 0,
+        leveling: 0,
+        community: 0,
+        small: 0
+    };
+
+    const nukeKeywords = ['nuke', 'raid', 'destroy', 'pulse', 'hades', 'wipe', 'kill', 'crash', 'fuck', 'trash', 'owned', 'destroyed'];
+    for (const word of nukeKeywords) {
+        if (serverName.includes(word)) scores.nuke += 5;
+        if (channelNames.some(c => c.includes(word))) scores.nuke += 3;
+        if (categoryNames.some(c => c.includes(word))) scores.nuke += 4;
+        if (roleNames.some(r => r.includes(word))) scores.nuke += 2;
+    }
+
+    if (channelNames.some(c => c.includes('nuke') || c.includes('raid') || c.includes('destroy'))) scores.nuke += 5;
+    if (channelNames.some(c => c.includes('pulse'))) scores.nuke += 4;
+    if (serverName.includes('nuke') || serverName.includes('pulse')) scores.nuke += 3;
+
+    const gamingKeywords = ['gaming', 'game', 'play', 'lfg', 'clips', 'tournament', 'esports', 'gamer', 'stream', 'twitch'];
+    for (const word of gamingKeywords) {
+        if (serverName.includes(word)) scores.gaming += 3;
+        if (channelNames.some(c => c.includes(word))) scores.gaming += 2;
+        if (categoryNames.some(c => c.includes(word))) scores.gaming += 3;
+    }
+
+    const supportKeywords = ['support', 'ticket', 'help', 'faq', 'question', 'assistance', 'customer', 'service'];
+    for (const word of supportKeywords) {
+        if (serverName.includes(word)) scores.support += 3;
+        if (channelNames.some(c => c.includes(word))) scores.support += 2;
+        if (categoryNames.some(c => c.includes(word))) scores.support += 3;
+    }
+
+    const musicKeywords = ['music', 'song', 'playlist', 'radio', 'beat', 'audio', 'dj', 'sound'];
+    for (const word of musicKeywords) {
+        if (serverName.includes(word)) scores.music += 3;
+        if (channelNames.some(c => c.includes(word))) scores.music += 2;
+        if (categoryNames.some(c => c.includes(word))) scores.music += 3;
+    }
+
+    const eventsKeywords = ['event', 'giveaway', 'contest', 'competition', 'tournament', 'prize', 'winner'];
+    for (const word of eventsKeywords) {
+        if (serverName.includes(word)) scores.events += 2;
+        if (channelNames.some(c => c.includes(word))) scores.events += 2;
+        if (categoryNames.some(c => c.includes(word))) scores.events += 3;
+    }
+
+    if (channelNames.some(c => c.includes('level') || c.includes('xp') || c.includes('rank'))) scores.leveling += 5;
+    if (roleNames.some(r => r.includes('level') || r.includes('rank'))) scores.leveling += 3;
+
+    if (humanCount > 50) scores.community += 3;
+    if (humanCount > 100) scores.community += 5;
+    if (humanCount > 200) scores.community += 8;
+    if (serverName.includes('community') || serverName.includes('hub') || serverName.includes('group')) scores.community += 3;
+
+    if (humanCount < 10) scores.small += 5;
+    if (humanCount < 5) scores.small += 8;
+
+    const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+    const top = sorted[0];
+    const second = sorted[1];
+
+    if (top[1] > 0 && second[1] > 0 && (top[1] - second[1] < 3)) {
+        if (scores.nuke > 0) return 'Nuke Bot Server';
+        if (scores.gaming > 2) return 'Gaming Community';
+    }
+
+    if (top[1] > 0) {
+        switch (top[0]) {
+            case 'nuke': return 'Nuke Bot Server';
+            case 'gaming': return 'Gaming Community';
+            case 'support': return 'Support Server';
+            case 'music': return 'Music Server';
+            case 'events': return 'Events Server';
+            case 'leveling': return 'Leveling Server';
+            case 'community': return 'Large Community';
+            case 'small': return 'Small Server';
+            default: return 'Balanced Server';
+        }
+    }
+
+    if (serverName.includes('nuke') || serverName.includes('pulse')) return 'Nuke Bot Server';
+    if (serverName.includes('support') || serverName.includes('help')) return 'Support Server';
+    if (serverName.includes('gaming') || serverName.includes('game')) return 'Gaming Community';
+    if (serverName.includes('music')) return 'Music Server';
+    
+    if (humanCount > 100) return 'Large Community';
     if (humanCount < 10) return 'Small Server';
-    if (hasEvents && humanCount > 20) return 'Events Server';
-    if (hasLevels) return 'Leveling Server';
     
     return 'Balanced Server';
 }
 
-// ---- AUTO SETUP BASED ON SERVER TYPE ----
+// ---- AUTO SETUP ----
 async function autoSetup(guild, serverType) {
     await deleteDuplicateRoles(guild);
     await createRoles(guild);
@@ -180,50 +253,46 @@ async function autoSetup(guild, serverType) {
     await createInvite(guild);
 }
 
-// ---- LAYOUTS FOR EACH SERVER TYPE ----
+// ---- LAYOUTS ----
 
 function getNukeServerLayout() {
     return [
         {
-            name: '💀 NUKE COMMANDS',
-            channels: [
-                { name: '💀 nuke-commands', type: 'text', topic: 'Execute nuke commands here', botOnly: true },
-                { name: '💀 raid-logs', type: 'text', topic: 'Nuke logs', staffOnly: true }
-            ]
-        },
-        {
-            name: '📋 INFORMATION',
+            name: '📢 INFORMATION',
             channels: [
                 { name: '📢 announcements', type: 'text', topic: 'Server announcements', staffOnly: true },
-                { name: '📜 rules', type: 'text', topic: 'Rules before using' }
+                { name: '📜 rules', type: 'text', topic: 'Rules before using' },
+                { name: '📋 server-info', type: 'text', topic: 'About this server' }
             ]
         },
         {
-            name: '💬 CHAT',
+            name: '💬 COMMUNITY',
             channels: [
                 { name: '💬 general', type: 'text', topic: 'Chat here' },
-                { name: '📸 media', type: 'text', topic: 'Share media' }
+                { name: '📸 media', type: 'text', topic: 'Share media' },
+                { name: '🤣 memes', type: 'text', topic: 'Post memes' }
             ]
         },
         {
-            name: '🔊 VOICE',
+            name: '🤖 BOT ZONE',
             channels: [
-                { name: '🎤 General Voice', type: 'voice' },
-                { name: '🔇 AFK', type: 'voice' }
+                { name: '🤖 N4ke-Bot', type: 'text', topic: 'N4ke-Bot commands', botOnly: true },
+                { name: '🤖 bot-commands', type: 'text', topic: 'Other bot commands', botOnly: true },
+                { name: '📊 bot-logs', type: 'text', topic: 'Bot logs', staffOnly: true }
             ]
         },
         {
             name: '🛠️ STAFF',
             channels: [
                 { name: '👑 staff-chat', type: 'text', topic: 'Staff only', staffOnly: true },
-                { name: '📋 mod-logs', type: 'text', topic: 'Staff logs', staffOnly: true }
+                { name: '📋 mod-logs', type: 'text', topic: 'Moderation logs', staffOnly: true }
             ]
         },
         {
-            name: '🤖 BOT ZONE',
+            name: '🔊 VOICE CHANNELS',
             channels: [
-                { name: '🤖 bot-commands', type: 'text', topic: 'Other bot commands', botOnly: true },
-                { name: '📊 bot-logs', type: 'text', topic: 'Bot logs', staffOnly: true }
+                { name: '🎤 General Voice', type: 'voice' },
+                { name: '🔇 AFK', type: 'voice' }
             ]
         }
     ];
@@ -232,7 +301,7 @@ function getNukeServerLayout() {
 function getGamingServerLayout() {
     return [
         {
-            name: '📋 INFORMATION',
+            name: '📢 INFORMATION',
             channels: [
                 { name: '📢 announcements', type: 'text', topic: 'Server announcements', staffOnly: true },
                 { name: '📜 rules', type: 'text', topic: 'Read before playing' },
@@ -249,11 +318,10 @@ function getGamingServerLayout() {
             ]
         },
         {
-            name: '🔊 VOICE',
+            name: '🤖 BOT ZONE',
             channels: [
-                { name: '🎤 General Voice', type: 'voice' },
-                { name: '🎮 Gaming Voice', type: 'voice' },
-                { name: '🔇 AFK', type: 'voice' }
+                { name: '🤖 N4ke-Bot', type: 'text', topic: 'N4ke-Bot commands', botOnly: true },
+                { name: '🤖 bot-commands', type: 'text', topic: 'Other bot commands', botOnly: true }
             ]
         },
         {
@@ -264,9 +332,11 @@ function getGamingServerLayout() {
             ]
         },
         {
-            name: '🤖 BOT ZONE',
+            name: '🔊 VOICE CHANNELS',
             channels: [
-                { name: '🤖 bot-commands', type: 'text', topic: 'Bot commands', botOnly: true }
+                { name: '🎤 General Voice', type: 'voice' },
+                { name: '🎮 Gaming Voice', type: 'voice' },
+                { name: '🔇 AFK', type: 'voice' }
             ]
         }
     ];
@@ -275,7 +345,7 @@ function getGamingServerLayout() {
 function getSupportServerLayout() {
     return [
         {
-            name: '📋 INFORMATION',
+            name: '📢 INFORMATION',
             channels: [
                 { name: '📢 announcements', type: 'text', topic: 'Announcements', staffOnly: true },
                 { name: '📜 rules', type: 'text', topic: 'Support rules' },
@@ -291,9 +361,10 @@ function getSupportServerLayout() {
             ]
         },
         {
-            name: '🔊 VOICE',
+            name: '🤖 BOT ZONE',
             channels: [
-                { name: '🎤 Support Voice', type: 'voice' }
+                { name: '🤖 N4ke-Bot', type: 'text', topic: 'N4ke-Bot commands', botOnly: true },
+                { name: '🤖 bot-commands', type: 'text', topic: 'Bot commands', botOnly: true }
             ]
         },
         {
@@ -304,9 +375,9 @@ function getSupportServerLayout() {
             ]
         },
         {
-            name: '🤖 BOT ZONE',
+            name: '🔊 VOICE CHANNELS',
             channels: [
-                { name: '🤖 bot-commands', type: 'text', topic: 'Bot commands', botOnly: true }
+                { name: '🎤 Support Voice', type: 'voice' }
             ]
         }
     ];
@@ -315,7 +386,7 @@ function getSupportServerLayout() {
 function getMusicServerLayout() {
     return [
         {
-            name: '📋 INFORMATION',
+            name: '📢 INFORMATION',
             channels: [
                 { name: '📢 announcements', type: 'text', topic: 'Announcements', staffOnly: true },
                 { name: '📜 rules', type: 'text', topic: 'Music server rules' }
@@ -330,10 +401,11 @@ function getMusicServerLayout() {
             ]
         },
         {
-            name: '🔊 VOICE',
+            name: '🤖 BOT ZONE',
             channels: [
-                { name: '🎵 Music Voice', type: 'voice' },
-                { name: '🎤 General Voice', type: 'voice' }
+                { name: '🤖 N4ke-Bot', type: 'text', topic: 'N4ke-Bot commands', botOnly: true },
+                { name: '🎵 music-commands', type: 'text', topic: 'Music bot commands', botOnly: true },
+                { name: '🤖 bot-commands', type: 'text', topic: 'Other bot commands', botOnly: true }
             ]
         },
         {
@@ -344,10 +416,10 @@ function getMusicServerLayout() {
             ]
         },
         {
-            name: '🤖 BOT ZONE',
+            name: '🔊 VOICE CHANNELS',
             channels: [
-                { name: '🎵 music-commands', type: 'text', topic: 'Music bot commands', botOnly: true },
-                { name: '🤖 bot-commands', type: 'text', topic: 'Other bot commands', botOnly: true }
+                { name: '🎵 Music Voice', type: 'voice' },
+                { name: '🎤 General Voice', type: 'voice' }
             ]
         }
     ];
@@ -356,7 +428,7 @@ function getMusicServerLayout() {
 function getLargeCommunityLayout() {
     return [
         {
-            name: '📋 INFORMATION',
+            name: '📢 INFORMATION',
             channels: [
                 { name: '📢 announcements', type: 'text', topic: 'Server announcements', staffOnly: true },
                 { name: '📜 rules', type: 'text', topic: 'Community rules' },
@@ -380,11 +452,10 @@ function getLargeCommunityLayout() {
             ]
         },
         {
-            name: '🔊 VOICE',
+            name: '🤖 BOT ZONE',
             channels: [
-                { name: '🎤 General Voice', type: 'voice' },
-                { name: '🎵 Music Voice', type: 'voice' },
-                { name: '🔇 AFK', type: 'voice' }
+                { name: '🤖 N4ke-Bot', type: 'text', topic: 'N4ke-Bot commands', botOnly: true },
+                { name: '🤖 bot-commands', type: 'text', topic: 'Bot commands', botOnly: true }
             ]
         },
         {
@@ -395,9 +466,11 @@ function getLargeCommunityLayout() {
             ]
         },
         {
-            name: '🤖 BOT ZONE',
+            name: '🔊 VOICE CHANNELS',
             channels: [
-                { name: '🤖 bot-commands', type: 'text', topic: 'Bot commands', botOnly: true }
+                { name: '🎤 General Voice', type: 'voice' },
+                { name: '🎵 Music Voice', type: 'voice' },
+                { name: '🔇 AFK', type: 'voice' }
             ]
         }
     ];
@@ -406,7 +479,7 @@ function getLargeCommunityLayout() {
 function getEventsServerLayout() {
     return [
         {
-            name: '📋 INFORMATION',
+            name: '📢 INFORMATION',
             channels: [
                 { name: '📢 announcements', type: 'text', topic: 'Event announcements', staffOnly: true },
                 { name: '📜 rules', type: 'text', topic: 'Event rules' }
@@ -422,9 +495,10 @@ function getEventsServerLayout() {
             ]
         },
         {
-            name: '🔊 VOICE',
+            name: '🤖 BOT ZONE',
             channels: [
-                { name: '🎤 Event Voice', type: 'voice' }
+                { name: '🤖 N4ke-Bot', type: 'text', topic: 'N4ke-Bot commands', botOnly: true },
+                { name: '🤖 bot-commands', type: 'text', topic: 'Bot commands', botOnly: true }
             ]
         },
         {
@@ -435,9 +509,9 @@ function getEventsServerLayout() {
             ]
         },
         {
-            name: '🤖 BOT ZONE',
+            name: '🔊 VOICE CHANNELS',
             channels: [
-                { name: '🤖 bot-commands', type: 'text', topic: 'Bot commands', botOnly: true }
+                { name: '🎤 Event Voice', type: 'voice' }
             ]
         }
     ];
@@ -446,7 +520,7 @@ function getEventsServerLayout() {
 function getLevelingServerLayout() {
     return [
         {
-            name: '📋 INFORMATION',
+            name: '📢 INFORMATION',
             channels: [
                 { name: '📢 announcements', type: 'text', topic: 'Announcements', staffOnly: true },
                 { name: '📜 rules', type: 'text', topic: 'Server rules' },
@@ -462,10 +536,10 @@ function getLevelingServerLayout() {
             ]
         },
         {
-            name: '🔊 VOICE',
+            name: '🤖 BOT ZONE',
             channels: [
-                { name: '🎤 General Voice', type: 'voice' },
-                { name: '🎵 Music Voice', type: 'voice' }
+                { name: '🤖 N4ke-Bot', type: 'text', topic: 'N4ke-Bot commands', botOnly: true },
+                { name: '🤖 bot-commands', type: 'text', topic: 'Bot commands', botOnly: true }
             ]
         },
         {
@@ -476,9 +550,10 @@ function getLevelingServerLayout() {
             ]
         },
         {
-            name: '🤖 BOT ZONE',
+            name: '🔊 VOICE CHANNELS',
             channels: [
-                { name: '🤖 bot-commands', type: 'text', topic: 'Bot commands', botOnly: true }
+                { name: '🎤 General Voice', type: 'voice' },
+                { name: '🎵 Music Voice', type: 'voice' }
             ]
         }
     ];
@@ -487,7 +562,7 @@ function getLevelingServerLayout() {
 function getBalancedLayout() {
     return [
         {
-            name: '📋 INFORMATION',
+            name: '📢 INFORMATION',
             channels: [
                 { name: '📢 announcements', type: 'text', topic: 'Server announcements', staffOnly: true },
                 { name: '📜 rules', type: 'text', topic: 'Read the rules' },
@@ -503,11 +578,10 @@ function getBalancedLayout() {
             ]
         },
         {
-            name: '🔊 VOICE',
+            name: '🤖 BOT ZONE',
             channels: [
-                { name: '🎤 General Voice', type: 'voice' },
-                { name: '🎵 Music Voice', type: 'voice' },
-                { name: '🔇 AFK', type: 'voice' }
+                { name: '🤖 N4ke-Bot', type: 'text', topic: 'N4ke-Bot commands', botOnly: true },
+                { name: '🤖 bot-commands', type: 'text', topic: 'Bot commands', botOnly: true }
             ]
         },
         {
@@ -518,9 +592,11 @@ function getBalancedLayout() {
             ]
         },
         {
-            name: '🤖 BOT ZONE',
+            name: '🔊 VOICE CHANNELS',
             channels: [
-                { name: '🤖 bot-commands', type: 'text', topic: 'Bot commands', botOnly: true }
+                { name: '🎤 General Voice', type: 'voice' },
+                { name: '🎵 Music Voice', type: 'voice' },
+                { name: '🔇 AFK', type: 'voice' }
             ]
         }
     ];
@@ -611,8 +687,8 @@ async function fixAllPermissions(guild) {
                 continue;
             }
 
-            // Bot channels
-            if (channelName.includes('bot-commands') || channelName.includes('nuke-commands') || channelName.includes('music-commands')) {
+            // Bot channels - only bots can send
+            if (channelName.includes('n4ke-bot') || channelName.includes('bot-commands') || channelName.includes('music-commands')) {
                 await channel.permissionOverwrites.edit(everyone, { SendMessages: false, AddReactions: false });
                 if (botRole) await channel.permissionOverwrites.edit(botRole, { SendMessages: true, AddReactions: true });
                 if (adminRole) await channel.permissionOverwrites.edit(adminRole, { SendMessages: true });
@@ -620,7 +696,7 @@ async function fixAllPermissions(guild) {
                 continue;
             }
 
-            // Media channels
+            // Media channels - no attachments
             if (channelName.includes('media')) {
                 await channel.permissionOverwrites.edit(everyone, { SendMessages: true, AttachFiles: false });
                 if (adminRole) await channel.permissionOverwrites.edit(adminRole, { AttachFiles: true });
@@ -628,7 +704,7 @@ async function fixAllPermissions(guild) {
                 continue;
             }
 
-            // Rules channel
+            // Rules channel - everyone can view, only staff can send
             if (channelName.includes('rules')) {
                 await channel.permissionOverwrites.edit(everyone, { ViewChannel: true, SendMessages: false });
                 if (adminRole) await channel.permissionOverwrites.edit(adminRole, { SendMessages: true });
@@ -643,7 +719,7 @@ async function fixAllPermissions(guild) {
                 continue;
             }
 
-            // Regular text channels
+            // Regular text channels - everyone can send
             await channel.permissionOverwrites.edit(everyone, {
                 ViewChannel: true,
                 SendMessages: true,
@@ -722,34 +798,4 @@ async function createChannels(guild, categories) {
 
 // ---- CREATE WELCOME ----
 async function createWelcome(guild, serverType) {
-    const channel = guild.channels.cache.find(c => c.name === '💬 general');
-    if (channel) {
-        try {
-            await channel.send(`# 🎉 Welcome to **${guild.name}**!\n\n## 📊 Server Type: \`${serverType}\`\n\n## 📌 Read the rules in <#${guild.channels.cache.find(c => c.name === '📜 rules')?.id}>\n## 📢 Check <#${guild.channels.cache.find(c => c.name === '📢 announcements')?.id}> for updates\n\n### Enjoy your stay!`);
-        } catch (e) {}
-    }
-}
-
-// ---- CREATE INVITE ----
-async function createInvite(guild) {
-    try {
-        const channel = guild.channels.cache.find(c => c.type === ChannelType.GuildText);
-        if (channel) {
-            await channel.createInvite({ maxAge: 0, maxUses: 0 });
-        }
-    } catch (e) {}
-}
-
-// ---- FULL SETUP ----
-async function fullSetup(guild) {
-    const serverType = await detectServerType(guild);
-    await autoSetup(guild, serverType);
-}
-
-// ---- BOT STARTUP ----
-client.once('ready', async () => {
-    console.log(`🤖 ${client.user.tag} is online!`);
-    await registerCommands();
-});
-
-client.login(TOKEN);
+    const channel = guild
