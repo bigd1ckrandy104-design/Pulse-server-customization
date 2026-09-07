@@ -1,9 +1,10 @@
-const { Client, GatewayIntentBits, EmbedBuilder, PermissionsBitField, ChannelType } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, PermissionsBitField, ChannelType, REST, Routes } = require('discord.js');
 const express = require('express');
 const app = express();
 
 const TOKEN = process.env.TOKEN;
 const PORT = process.env.PORT || 3000;
+const CLIENT_ID = 'YOUR_CLIENT_ID'; // <-- PUT YOUR CLIENT ID HERE
 
 if (!TOKEN) {
     console.error('❌ TOKEN environment variable is required!');
@@ -19,12 +20,14 @@ const client = new Client({
     ]
 });
 
+// ---- EXPRESS SERVER ----
 app.get('/', (req, res) => res.send('✅ Pulse Setup Bot is running!'));
 app.listen(PORT, () => console.log(`🌐 Web server on port ${PORT}`));
 
+// ---- REGISTER COMMANDS ----
 async function registerCommands() {
     try {
-        await client.application.commands.set([
+        const commands = [
             {
                 name: 'setup',
                 description: '🚀 Full server setup with clean design',
@@ -43,13 +46,17 @@ async function registerCommands() {
                     }
                 ]
             }
-        ]);
+        ];
+
+        const rest = new REST({ version: '10' }).setToken(TOKEN);
+        await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
         console.log('✅ Commands registered');
     } catch (error) {
         console.error('Failed to register commands:', error);
     }
 }
 
+// ---- INTERACTION HANDLER ----
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
 
@@ -66,32 +73,38 @@ client.on('interactionCreate', async (interaction) => {
 
         const action = options.getString('action');
 
-        if (action === 'scan') {
-            const report = await scanServer(guild);
-            await interaction.editReply({ embeds: [report] });
-            return;
-        }
+        try {
+            if (action === 'scan') {
+                const report = await scanServer(guild);
+                await interaction.editReply({ embeds: [report] });
+                return;
+            }
 
-        if (action === 'full') {
-            await interaction.editReply('🔍 Scanning server...');
-            const report = await scanServer(guild);
-            await interaction.editReply({ content: '📊 **Server Scan Complete**', embeds: [report] });
-            
-            await interaction.editReply('🔄 Building missing channels and roles...');
-            await fullSetup(guild);
-            await interaction.editReply('✅ **Server design complete!** Check your channels.');
-        } else if (action === 'channels') {
-            await interaction.editReply('📂 Creating missing channels...');
-            await createChannels(guild);
-            await interaction.editReply('✅ **Channels created!**');
-        } else if (action === 'roles') {
-            await interaction.editReply('📋 Creating missing roles...');
-            await createRoles(guild);
-            await interaction.editReply('✅ **Roles created!**');
+            if (action === 'full') {
+                await interaction.editReply('🔍 Scanning server...');
+                const report = await scanServer(guild);
+                await interaction.editReply({ content: '📊 **Server Scan Complete**', embeds: [report] });
+                
+                await interaction.editReply('🔄 Building missing channels and roles...');
+                await fullSetup(guild);
+                await interaction.editReply('✅ **Server design complete!** Check your channels.');
+            } else if (action === 'channels') {
+                await interaction.editReply('📂 Creating missing channels...');
+                await createChannels(guild);
+                await interaction.editReply('✅ **Channels created!**');
+            } else if (action === 'roles') {
+                await interaction.editReply('📋 Creating missing roles...');
+                await createRoles(guild);
+                await interaction.editReply('✅ **Roles created!**');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            await interaction.editReply('❌ An error occurred. Check console logs.');
         }
     }
 });
 
+// ---- SCAN SERVER ----
 async function scanServer(guild) {
     const existingCategories = guild.channels.cache
         .filter(c => c.type === ChannelType.GuildCategory)
@@ -129,6 +142,7 @@ async function scanServer(guild) {
     return embed;
 }
 
+// ---- FULL SETUP ----
 async function fullSetup(guild) {
     await createRoles(guild);
     await createChannels(guild);
@@ -136,6 +150,7 @@ async function fullSetup(guild) {
     await createInvite(guild);
 }
 
+// ---- CREATE ROLES ----
 async function createRoles(guild) {
     const roleData = [
         { name: '👑 Owner', color: '#FF0000', perms: PermissionsBitField.Flags.Administrator },
@@ -161,6 +176,7 @@ async function createRoles(guild) {
     }
 }
 
+// ---- CREATE CHANNELS ----
 async function createChannels(guild) {
     const categories = [
         {
@@ -264,6 +280,7 @@ async function createChannels(guild) {
     }
 }
 
+// ---- CREATE WELCOME ----
 async function createWelcome(guild) {
     const channel = guild.channels.cache.find(c => c.name === '💬 general');
     if (channel) {
@@ -273,6 +290,7 @@ async function createWelcome(guild) {
     }
 }
 
+// ---- CREATE INVITE ----
 async function createInvite(guild) {
     try {
         const channel = guild.channels.cache.find(c => c.type === ChannelType.GuildText);
@@ -285,9 +303,11 @@ async function createInvite(guild) {
     } catch (e) {}
 }
 
+// ---- BOT STARTUP ----
 client.once('ready', async () => {
     console.log(`🤖 ${client.user.tag} is online!`);
     await registerCommands();
+    console.log('✅ Bot is ready to use!');
 });
 
 client.login(TOKEN);
